@@ -1,0 +1,353 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Aviator</title>
+    <style>
+        * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; }
+        body { background-color: #0c0c0e; color: #fff; display: flex; flex-direction: column; min-height: 100vh; }
+        
+        /* Header styling */
+        header { background-color: #14141a; padding: 12px 25px; display: flex; justify-content: space-between; align-items: center; border-bottom: 2px solid #1f1f2a; }
+        .logo { font-size: 24px; font-weight: 900; color: #e91e63; letter-spacing: 1px; text-transform: uppercase; }
+        .user-panel { display: flex; align-items: center; gap: 15px; }
+        .balance-container { background: #1a1a24; padding: 8px 16px; border-radius: 20px; border: 1px solid #2d2d3d; font-weight: bold; color: #4caf50; font-size: 14px; }
+        
+        .header-btn { padding: 8px 16px; border: none; border-radius: 6px; font-weight: bold; cursor: pointer; transition: 0.2s; font-size: 13px; }
+        .dep-btn { background: #4caf50; color: white; }
+        .dep-btn:hover { background: #388e3c; }
+        .with-btn { background: #2196f3; color: white; }
+        .with-btn:hover { background: #1976d2; }
+
+        /* Auth Screen overlay */
+        #authOverlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(12, 12, 14, 0.97); display: flex; justify-content: center; align-items: center; z-index: 1000; }
+        .auth-card { background: #14141a; padding: 40px; border-radius: 16px; width: 350px; text-align: center; border: 1px solid #232330; box-shadow: 0 10px 30px rgba(0,0,0,0.7); }
+        .auth-card h2 { margin-bottom: 20px; color: #e91e63; font-weight: 800; }
+        .auth-card input { width: 100%; padding: 12px; margin-bottom: 15px; background: #0c0c0e; border: 1px solid #2d2d3d; border-radius: 8px; color: white; font-size: 14px; outline: none; }
+        .auth-card input:focus { border-color: #e91e63; }
+        .auth-card button { width: 100%; padding: 12px; background: #e91e63; border: none; border-radius: 8px; color: white; font-weight: bold; cursor: pointer; font-size: 14px; transition: 0.3s; }
+        .auth-card button:hover { background: #c2185b; }
+        .toggle-auth { margin-top: 15px; font-size: 12px; color: #8e8e9f; cursor: pointer; }
+
+        /* Main Workspace */
+        #gameWorkspace { display: none; padding: 15px; max-width: 1100px; margin: 0 auto; width: 100%; }
+        .game-grid { display: flex; flex-direction: column; gap: 15px; }
+        
+        /* Canvas Panel */
+        .canvas-container { background: #14141a; border-radius: 16px; border: 1px solid #1f1f2a; height: 360px; position: relative; overflow: hidden; display: flex; justify-content: center; align-items: center; }
+        canvas { position: absolute; top: 0; left: 0; width: 100%; height: 100%; z-index: 1; }
+        .m-text { font-size: 64px; font-weight: 900; color: #fff; z-index: 5; text-align: center; line-height: 1.2; text-shadow: 0 0 25px rgba(255,255,255,0.2); }
+
+        /* Betting Row Container matching the layout image */
+        .bet-container { display: grid; grid-template-columns: 1fr 1fr; gap: 15px; }
+        .deck-box { background: #14141a; padding: 15px; border-radius: 16px; border: 1px solid #1f1f2a; display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+        
+        /* Interactive Amount Controls on the Left */
+        .control-group { display: flex; align-items: center; background: #0c0c0e; border-radius: 10px; border: 1px solid #232330; padding: 4px; }
+        .qty-btn { width: 32px; height: 32px; background: #1f1f2a; border: none; border-radius: 50%; color: #8e8e9f; font-size: 18px; font-weight: bold; cursor: pointer; display: flex; justify-content: center; align-items: center; transition: 0.2s; }
+        .qty-btn:hover { background: #2d2d3d; color: white; }
+        .deck-box input { width: 80px; text-align: center; background: transparent; border: none; color: white; font-size: 18px; font-weight: bold; outline: none; -moz-appearance: textfield; }
+        .deck-box input::-webkit-outer-spin-button, .deck-box input::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
+
+        /* Dual-Line Action Button on the Right */
+        .main-action-trigger { flex: 1; height: 64px; border: none; border-radius: 12px; color: white; cursor: pointer; transition: 0.2s; display: flex; flex-direction: column; justify-content: center; align-items: center; gap: 3px; box-shadow: 0 4px 15px rgba(0,0,0,0.2); }
+        .main-action-trigger:disabled { background: #2d2d3d !important; color: #5c5c6d !important; cursor: not-allowed; box-shadow: none; }
+        
+        /* Action Button States */
+        .btn-bet { background: #2ca01c; } /* Rich green for placing bets */
+        .btn-bet:hover:not(:disabled) { background: #248216; }
+        .btn-cashout { background: #d32f2f; } /* Vivid red-orange for quick cashout action */
+        .btn-cashout:hover:not(:disabled) { background: #b71c1c; }
+        .btn-waiting { background: #afb42b; color: black; } /* Warning yellow-lime */
+
+        .btn-title { font-size: 18px; font-weight: bold; text-transform: uppercase; letter-spacing: 0.5px; }
+        .btn-sub { font-size: 12px; opacity: 0.9; font-weight: 600; }
+
+        /* Modals (Deposit & Withdraw) */
+        .modal-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0, 0, 0, 0.85); display: none; justify-content: center; align-items: center; z-index: 900; }
+        .modal-card { background: #14141a; padding: 30px; border-radius: 16px; width: 400px; border: 1px solid #232330; position: relative; }
+        .modal-card h2 { margin-bottom: 20px; color: #fff; font-weight: bold; }
+        .modal-close { position: absolute; top: 15px; right: 20px; font-size: 24px; cursor: pointer; color: #8e8e9f; }
+        
+        .amount-options { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; margin-bottom: 15px; }
+        .amount-btn { padding: 10px; background: #1f1f2a; border: 1px solid #2d2d3d; border-radius: 8px; color: white; cursor: pointer; font-weight: bold; transition: 0.2s; }
+        .amount-btn.active, .amount-btn:hover { background: #e91e63; border-color: #e91e63; }
+
+        .modal-card input { width: 100%; padding: 12px; margin-bottom: 15px; background: #0c0c0e; border: 1px solid #2d2d3d; border-radius: 8px; color: white; }
+        .modal-card button.submit-btn { width: 100%; padding: 12px; background: #e91e63; border: none; border-radius: 8px; color: white; font-weight: bold; cursor: pointer; }
+        .err-message { color: #ff5252; font-size: 13px; margin-bottom: 15px; display: none; }
+    </style>
+</head>
+<body>
+
+    <!-- Authentication Screen -->
+    <div id="authOverlay">
+        <!-- Login Form -->
+        <div class="auth-card" id="loginForm">
+            <h2>Aviator Login</h2>
+            <input type="text" id="loginUser" placeholder="Enter Username" required>
+            <input type="password" id="loginPass" placeholder="Enter Password" required>
+            <button onclick="handleAuthSubmit('login')">Login</button>
+            <p class="toggle-auth" onclick="toggleAuthView(false)">Don't have an account? Register</p>
+        </div>
+
+        <!-- Register Form -->
+        <div class="auth-card" id="registerForm" style="display: none;">
+            <h2>Create Account</h2>
+            <input type="text" id="regUser" placeholder="Choose Username" required>
+            <input type="password" id="regPass" placeholder="Choose Password" required>
+            <button onclick="handleAuthSubmit('register')">Register</button>
+            <p class="toggle-auth" onclick="toggleAuthView(true)">Already registered? Login</p>
+        </div>
+    </div>
+
+    <!-- Header Panel (Styled dynamically) -->
+    <header>
+        <div class="logo">Aviator</div>
+        <div class="user-panel">
+            <span id="navUser" style="font-weight: 600; color: #8e8e9f;">Not Logged In</span>
+            <div class="balance-container">
+                Balance: <span id="navBalance">KES 0.00</span>
+            </div>
+            <button class="header-btn dep-btn" onclick="openDepositModal()">Deposit</button>
+            <button class="header-btn with-btn" onclick="openWithdrawModal()">Withdraw</button>
+        </div>
+    </header>
+
+    <!-- Main Workspace -->
+    <div id="gameWorkspace">
+        <div class="game-grid">
+            <!-- Left: Graphic Flight Screen -->
+            <div class="canvas-container">
+                <canvas id="flightCanvas"></canvas>
+                <div class="m-text" id="multiplierView">1.00x</div>
+            </div>
+
+            <!-- Right: Interactive Dual-Line Betting row matching your exact specifications -->
+            <div class="bet-container">
+                <!-- Bet Box 1 -->
+                <div class="deck-box">
+                    <div class="control-group">
+                        <button class="qty-btn" onclick="modifyBetValue(1, -5)">−</button>
+                        <input type="number" id="betAmt-1" value="10.00" step="1" min="1">
+                        <button class="qty-btn" onclick="modifyBetValue(1, 5)">+</button>
+                    </div>
+                    <button class="main-action-trigger btn-bet" id="btnAction-1" onclick="executeBetAction(1)" disabled>
+                        <span class="btn-title" id="btnTitle-1">Bet</span>
+                        <span class="btn-sub" id="btnSub-1">10.00 KES</span>
+                    </button>
+                </div>
+
+                <!-- Bet Box 2 -->
+                <div class="deck-box">
+                    <div class="control-group">
+                        <button class="qty-btn" onclick="modifyBetValue(2, -5)">−</button>
+                        <input type="number" id="betAmt-2" value="10.00" step="1" min="1">
+                        <button class="qty-btn" onclick="modifyBetValue(2, 5)">+</button>
+                    </div>
+                    <button class="main-action-trigger btn-bet" id="btnAction-2" onclick="executeBetAction(2)" disabled>
+                        <span class="btn-title" id="btnTitle-2">Bet</span>
+                        <span class="btn-sub" id="btnSub-2">10.00 KES</span>
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Deposit Modal -->
+    <div class="modal-overlay" id="depositModal">
+        <div class="modal-card">
+            <span class="modal-close" onclick="closeModal('depositModal')">&times;</span>
+            <h2>Top Up Balance</h2>
+            <div class="amount-options">
+                <button class="amount-btn" onclick="setDepositAmount(100)">100</button>
+                <button class="amount-btn" onclick="setDepositAmount(250)">250</button>
+                <button class="amount-btn" onclick="setDepositAmount(500)">500</button>
+                <button class="amount-btn" onclick="setDepositAmount(1000)">1000</button>
+            </div>
+            <input type="number" id="customDeposit" placeholder="Enter amount (Min 50, Max 1000)">
+            <div class="err-message" id="depositErr"></div>
+            <button class="submit-btn" onclick="handleDepositSubmit()">Pay Securely</button>
+        </div>
+    </div>
+
+    <!-- Withdraw Modal -->
+    <div class="modal-overlay" id="withdrawModal">
+        <div class="modal-card">
+            <span class="modal-close" onclick="closeModal('withdrawModal')">&times;</span>
+            <h2>Withdraw Funds</h2>
+            <input type="number" id="withdrawAmt" placeholder="Enter Amount">
+            <input type="text" id="phoneNo" placeholder="M-Pesa Mobile Number">
+            <button class="submit-btn" onclick="alert('Withdraw request received!')">Submit Withdrawal</button>
+        </div>
+    </div>
+
+    <!-- Scripts with DEFER to prevent early execution -->
+    <script src="/socket.io/socket.io.js"></script>
+    <script src="https://js.paystack.co/v1/inline.js"></script>
+    <script src="app.js" defer></script>
+
+    <script>
+        // POPUP INTERFACE UTILITIES
+        function openWithdrawModal() {
+            const modal = document.getElementById('withdrawModal');
+            if (modal) modal.style.display = 'flex';
+        }
+
+        function openDepositModal() {
+            const modal = document.getElementById('depositModal');
+            if (modal) modal.style.display = 'flex';
+        }
+
+        function closeModal(id) {
+            const modal = document.getElementById(id);
+            if (modal) modal.style.display = 'none';
+            
+            if (id === 'depositModal') {
+                const errBox = document.getElementById('depositErr');
+                const customInput = document.getElementById('customDeposit');
+                if (errBox) errBox.style.display = 'none';
+                if (customInput) customInput.value = '';
+                document.querySelectorAll('.amount-btn').forEach(b => b.classList.remove('active'));
+            }
+        }
+
+        function setDepositAmount(val) {
+            const customInput = document.getElementById('customDeposit');
+            if (customInput) customInput.value = val;
+            
+            document.querySelectorAll('.amount-btn').forEach(b => {
+                b.classList.toggle('active', parseInt(b.innerText) === val);
+            });
+            
+            const errBox = document.getElementById('depositErr');
+            if (errBox) errBox.style.display = 'none';
+        }
+
+        // Handle step modifiers (+ / - buttons)
+        function modifyBetValue(deckId, step) {
+            const input = document.getElementById(`betAmt-${deckId}`);
+            if (!input) return;
+            let current = parseFloat(input.value) || 0;
+            let target = current + step;
+            if (target < 1) target = 1;
+            input.value = target.toFixed(2);
+            
+            // Instantly update Subtitle representation if bet not submitted
+            const actionButton = document.getElementById(`btnAction-${deckId}`);
+            if (actionButton && actionButton.classList.contains('btn-bet')) {
+                const sub = document.getElementById(`btnSub-${deckId}`);
+                if (sub) sub.innerText = `${target.toFixed(2)} KES`;
+            }
+        }
+
+        // Add input trackers safely only after HTML structure compiles
+        document.addEventListener('DOMContentLoaded', () => {
+            const customDepositInput = document.getElementById('customDeposit');
+            if (customDepositInput) {
+                customDepositInput.addEventListener('input', () => {
+                    document.querySelectorAll('.amount-btn').forEach(b => b.classList.remove('active'));
+                    const errBox = document.getElementById('depositErr');
+                    if (errBox) errBox.style.display = 'none';
+                });
+            }
+
+            // Sync manual input boxes with the action button text instantly
+            [1, 2].forEach(deckId => {
+                const input = document.getElementById(`betAmt-${deckId}`);
+                if (input) {
+                    input.addEventListener('input', () => {
+                        let val = parseFloat(input.value) || 0;
+                        if (val < 1) val = 1;
+                        const sub = document.getElementById(`btnSub-${deckId}`);
+                        const actionButton = document.getElementById(`btnAction-${deckId}`);
+                        if (sub && actionButton && actionButton.classList.contains('btn-bet')) {
+                            sub.innerText = `${val.toFixed(2)} KES`;
+                        }
+                    });
+                }
+            });
+        });
+
+        // Paystack Inline checkout integration
+        function handleDepositSubmit() {
+            const customInput = document.getElementById('customDeposit');
+            const errBox = document.getElementById('depositErr');
+            const navUserEl = document.getElementById('navUser');
+            
+            const inputVal = customInput ? customInput.value : '';
+            const amount = parseFloat(inputVal);
+            const username = (navUserEl && navUserEl.innerText && navUserEl.innerText !== 'Not Logged In') ? navUserEl.innerText : 'Guest_User';
+
+            if (!inputVal || isNaN(amount)) {
+                if (errBox) {
+                    errBox.innerText = "Please enter or select an amount.";
+                    errBox.style.display = 'block';
+                }
+                return;
+            }
+            if (amount < 50) {
+                if (errBox) {
+                    errBox.innerText = "Minimum is 50";
+                    errBox.style.display = 'block';
+                }
+                return;
+            }
+            if (amount > 1000) {
+                if (errBox) {
+                    errBox.innerText = "Maximum is 1000";
+                    errBox.style.display = 'block';
+                }
+                return;
+            }
+
+            let handler = PaystackPop.setup({
+                key: 'pk_live_48e08e87ba0a370c0b1493d71c149ff2fe7d18b2', // Live Public Key
+                email: username.toLowerCase().replace(/\s+/g, '') + '@aviator.bet',
+                amount: Math.round(amount * 100), // Ksh to cents
+                currency: 'KES',
+                ref: 'DEP_' + Date.now() + '_' + Math.floor(Math.random() * 1000),
+                
+                callback: function(response) {
+                    closeModal('depositModal');
+                    
+                    fetch('/api/paystack/verify', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            username: username,
+                            amount: amount,
+                            reference: response.reference
+                        })
+                    })
+                    .then(res => res.json())
+                    .then(data => {
+                        if (data.success) {
+                            alert('Deposit of KSh ' + amount + ' was successful!');
+                            if (typeof currentBalance !== 'undefined') {
+                                currentBalance = data.newBalance;
+                            }
+                            const navBalanceEl = document.getElementById('navBalance');
+                            if (navBalanceEl) {
+                                navBalanceEl.innerText = 'KES ' + parseFloat(data.newBalance).toFixed(2);
+                            }
+                        } else {
+                            alert('Verification Failed: ' + data.message);
+                        }
+                    })
+                    .catch(err => {
+                        console.error('Database connection error:', err);
+                        alert('Verified with Paystack but server database update failed.');
+                    });
+                },
+                onClose: function() {
+                    alert('Payment window cancelled.');
+                }
+            });
+
+            handler.openIframe();
+        }
+    </script>
+</body>
+</html>
